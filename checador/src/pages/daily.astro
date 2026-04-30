@@ -1,21 +1,21 @@
 ---
-// admin.astro
+import Navbar from '../components/Navbar.astro';
 ---
 
 <html lang="es">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Panel de Administración - Asistencias</title>
+    <title>Vista Diaria - Asistencias</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
   </head>
   <body>
+    <Navbar />
     <main class="contenedor-admin">
       <div class="cabecera">
-        <h1>Historial Diario de Turnos</h1>
+        <h1>Turnos de Hoy</h1>
       </div>
       
       <div class="tabla-responsiva">
@@ -178,7 +178,7 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     background-color: var(--bg-color);
     margin: 0;
-    padding: 1.5rem;
+    min-height: 100vh;
     color: var(--text-main);
     line-height: 1.5;
   }

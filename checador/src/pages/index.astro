@@ -1,4 +1,5 @@
 ---
+import Navbar from '../components/Navbar.astro';
 // Lógica de servidor (vacía por ahora)
 ---
 
@@ -12,6 +13,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   </head>
   <body>
+    <Navbar />
     <main class="contenedor-checador">
       <h1>Registro de Asistencia</h1>
       
@@ -110,7 +112,7 @@
               try { html5QrcodeScanner.resume(); } catch(e){}
               const overlayEl = document.getElementById('overlay');
               if (overlayEl) overlayEl.style.display = 'none';
-          }, 3000); 
+          }, 2000); 
         });
 
       } catch (errorGeneral) {
@@ -148,11 +150,7 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     background-color: var(--bg-color);
     margin: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     min-height: 100vh;
-    padding: 1.5rem;
   }
 
   .contenedor-checador {
@@ -163,6 +161,7 @@
     width: 100%;
     max-width: 480px;
     text-align: center;
+    margin: 2rem auto;
   }
 
   h1 {

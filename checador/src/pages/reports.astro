@@ -1,0 +1,461 @@
+---
+import Navbar from '../components/Navbar.astro';
+---
+
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reportes Globales - Asistencias</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  </head>
+  <body>
+    <Navbar />
+    <main class="contenedor-reports">
+      <div class="cabecera">
+        <h1>Reportes Globales</h1>
+        <p class="subtitulo">Consulta y exporta el historial completo de asistencia</p>
+      </div>
+
+      <!-- Panel de Filtros -->
+      <div class="filtros-card">
+        <div class="filtros-grid">
+          <div class="filtro-item">
+            <label>Desde:</label>
+            <input type="date" id="fecha-inicio">
+          </div>
+          <div class="filtro-item">
+            <label>Hasta:</label>
+            <input type="date" id="fecha-fin">
+          </div>
+          <div class="filtro-item">
+            <label>Empleado ID:</label>
+            <input type="text" id="filtro-empleado" placeholder="Todos los empleados">
+          </div>
+        </div>
+        <div class="acciones-filtros">
+          <button id="btn-buscar" class="btn-primario">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Buscar Registros
+          </button>
+          <button id="btn-exportar" class="btn-secundario">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar Excel
+          </button>
+        </div>
+      </div>
+
+      <!-- Resumen rápido -->
+      <div class="resumen-grid">
+        <div class="resumen-card">
+          <span class="resumen-label">Total Registros</span>
+          <span id="total-registros" class="resumen-valor">0</span>
+        </div>
+        <div class="resumen-card">
+          <span class="resumen-label">Empleados Únicos</span>
+          <span id="total-empleados" class="resumen-valor">0</span>
+        </div>
+      </div>
+      
+      <div class="tabla-responsiva">
+        <table>
+          <thead>
+            <tr>
+              <th>Empleado</th>
+              <th>Entrada</th>
+              <th>Salida</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-body">
+            <tr>
+              <td colspan="4" class="mensaje-estado">Selecciona un rango de fechas para buscar...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <script>
+      const baseUrl = 'https://jomcrhdyfmsizldlpwmv.supabase.co/rest/v1/registros';
+      const apiKey = 'sb_publishable_-TO3wwjcQb3bzyQhuxj7VQ_4ahUUhGC';
+      let datosFiltrados = [];
+
+      // Inicializar fechas (última semana por defecto)
+      document.addEventListener('DOMContentLoaded', () => {
+        const hoy = new Date();
+        const haceUnaSemana = new Date();
+        haceUnaSemana.setDate(hoy.getDate() - 7);
+        
+        (document.getElementById('fecha-inicio') as HTMLInputElement).value = haceUnaSemana.toISOString().split('T')[0];
+        (document.getElementById('fecha-fin') as HTMLInputElement).value = hoy.toISOString().split('T')[0];
+        
+        cargarReportes();
+      });
+
+      async function cargarReportes() {
+        const fechaInicio = (document.getElementById('fecha-inicio') as HTMLInputElement).value;
+        const fechaFin = (document.getElementById('fecha-fin') as HTMLInputElement).value;
+        const empleadoId = (document.getElementById('filtro-empleado') as HTMLInputElement).value.trim();
+        
+        const tbody = document.getElementById('tabla-body');
+        const btnBuscar = document.getElementById('btn-buscar');
+        
+        btnBuscar.innerHTML = "buscando...";
+        btnBuscar.classList.add('loading');
+        
+        try {
+          // Filtramos por rango de fechas
+          let url = `${baseUrl}?hora_entrada=gte.${fechaInicio}T00:00:00&hora_entrada=lte.${fechaFin}T23:59:59&select=*&order=hora_entrada.desc`;
+          
+          // Filtro por empleado si se proporcionó
+          if (empleadoId) {
+            url += `&empleado_id=eq.${empleadoId}`;
+          }
+
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'apikey': apiKey,
+              'Authorization': `Bearer ${apiKey}`
+            }
+          });
+          
+          if (!response.ok) throw new Error('Error de conexión');
+          
+          const datos = await response.json();
+          datosFiltrados = datos;
+          
+          actualizarResumen(datos);
+          renderizarTabla(datos);
+
+        } catch (error) {
+          console.error(error);
+          tbody.innerHTML = '<tr><td colspan="4" class="mensaje-estado error">Error al cargar reportes.</td></tr>';
+        } finally {
+          btnBuscar.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Buscar Registros`;
+          btnBuscar.classList.remove('loading');
+        }
+      }
+
+      function renderizarTabla(datos) {
+        const tbody = document.getElementById('tabla-body');
+        if (datos.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" class="mensaje-estado">No se encontraron registros para estos filtros.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = datos.map(reg => {
+          const fEntrada = new Date(reg.hora_entrada);
+          const entradaTexto = fEntrada.toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit' });
+          
+          let salidaHTML = '<span class="badge-pendiente">Sin Salida</span>';
+          let estadoHTML = '<span class="dot-warning"></span> Incompleto';
+          
+          if (reg.hora_salida) {
+            const fSalida = new Date(reg.hora_salida);
+            const salidaTexto = fSalida.toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute:'2-digit' });
+            salidaHTML = `<span class="text-salida">${salidaTexto}</span>`;
+            estadoHTML = '<span class="dot-success"></span> Completado';
+          }
+          
+          return `
+            <tr>
+              <td><strong>${reg.empleado_id}</strong></td>
+              <td><span class="text-entrada">${entradaTexto}</span></td>
+              <td>${salidaHTML}</td>
+              <td><div class="estado-celda">${estadoHTML}</div></td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      function actualizarResumen(datos) {
+        document.getElementById('total-registros').innerText = datos.length;
+        const empleadosUnicos = new Set(datos.map(d => d.empleado_id)).size;
+        document.getElementById('total-empleados').innerText = empleadosUnicos.toString();
+      }
+
+      async function exportarAExcel() {
+        if (datosFiltrados.length === 0) {
+          alert("No hay datos para exportar.");
+          return;
+        }
+
+        const ExcelJS = (window as any).ExcelJS;
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Reporte Asistencias');
+
+        worksheet.columns = [
+          { header: 'ID Empleado', key: 'id', width: 20 },
+          { header: 'Entrada', key: 'entrada', width: 25 },
+          { header: 'Salida', key: 'salida', width: 25 },
+          { header: 'Estado', key: 'estado', width: 15 }
+        ];
+
+        datosFiltrados.forEach(reg => {
+          worksheet.addRow({
+            id: reg.empleado_id,
+            entrada: new Date(reg.hora_entrada).toLocaleString(),
+            salida: reg.hora_salida ? new Date(reg.hora_salida).toLocaleString() : 'N/A',
+            estado: reg.hora_salida ? 'Completado' : 'Incompleto'
+          });
+        });
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Reporte_Asistencias_${new Date().toISOString().split('T')[0]}.xlsx`;
+        a.click();
+      }
+
+      document.getElementById('btn-buscar').addEventListener('click', cargarReportes);
+      document.getElementById('btn-exportar').addEventListener('click', exportarAExcel);
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --bg-color: #f8fafc;
+    --text-main: #0f172a;
+    --primary: #3b82f6;
+    --primary-hover: #2563eb;
+    --border-color: #e2e8f0;
+    --card-bg: #ffffff;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-color);
+    margin: 0;
+    min-height: 100vh;
+    color: var(--text-main);
+  }
+
+  .contenedor-reports {
+    max-width: 1000px;
+    margin: 0 auto 3rem auto;
+    padding: 0 1.5rem;
+  }
+
+  .cabecera {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+
+  h1 {
+    font-size: 2.5rem;
+    font-weight: 900;
+    margin: 0 0 0.5rem 0;
+    letter-spacing: -0.04em;
+    background: linear-gradient(135deg, #1e293b 0%, #3b82f6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitulo {
+    color: #64748b;
+    font-size: 1.1rem;
+    margin: 0;
+  }
+
+  /* Filtros */
+  .filtros-card {
+    background: white;
+    padding: 2rem;
+    border-radius: 20px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border-color);
+    margin-bottom: 2rem;
+  }
+
+  .filtros-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .filtro-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .filtro-item label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+  }
+
+  .filtro-item input {
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    color: var(--text-main);
+    transition: border-color 0.2s;
+  }
+
+  .filtro-item input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .acciones-filtros {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+  }
+
+  /* Resumen */
+  .resumen-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .resumen-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .resumen-label {
+    font-size: 0.85rem;
+    color: #64748b;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .resumen-valor {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--primary);
+  }
+
+  /* Tabla */
+  .tabla-responsiva {
+    background: white;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+  }
+
+  th {
+    background: #f8fafc;
+    padding: 1rem 1.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #64748b;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  td {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.95rem;
+  }
+
+  .text-entrada, .text-salida {
+    font-weight: 600;
+    color: #334155;
+  }
+
+  .badge-pendiente {
+    color: #94a3b8;
+    font-style: italic;
+    font-size: 0.9rem;
+  }
+
+  .estado-celda {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  .dot-success { width: 8px; height: 8px; background: #10b981; border-radius: 50%; }
+  .dot-warning { width: 8px; height: 8px; background: #f59e0b; border-radius: 50%; }
+
+  .mensaje-estado {
+    text-align: center;
+    padding: 4rem !important;
+    color: #64748b;
+  }
+
+  /* Botones */
+  .btn-primario, .btn-secundario {
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    transition: all 0.2s;
+  }
+
+  .btn-primario {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+  }
+
+  .btn-primario:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 15px rgba(59, 130, 246, 0.3);
+  }
+
+  .btn-secundario {
+    background: #ffffff;
+    color: #475569;
+    border: 1px solid var(--border-color);
+  }
+
+  .btn-secundario:hover {
+    background: #f8fafc;
+    transform: translateY(-1px);
+  }
+
+  .loading { opacity: 0.7; cursor: not-allowed; }
+
+  @media (max-width: 640px) {
+    .acciones-filtros {
+      flex-direction: column;
+    }
+    .btn-primario, .btn-secundario {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+</style>
