@@ -1,0 +1,323 @@
+---
+// Lógica de servidor (vacía por ahora)
+---
+
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Checador de Personal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <main class="contenedor-checador">
+      <h1>Registro de Asistencia</h1>
+      
+      <!-- Botones para seleccionar Entrada o Salida -->
+      <div class="opciones-movimiento">
+        <label class="radio-btn">
+          <input type="radio" name="movimiento" value="Entrada" checked>
+          <span class="radio-texto">Entrada</span>
+        </label>
+        <label class="radio-btn">
+          <input type="radio" name="movimiento" value="Salida">
+          <span class="radio-texto">Salida</span>
+        </label>
+      </div>
+
+      <!-- Contenedor de la cámara -->
+      <div class="scanner-wrapper">
+        <div id="reader"></div>
+        <div id="overlay" class="scanner-overlay">
+          <div class="overlay-contenido">
+            <span class="check-icon">✓</span>
+            <p id="overlay-texto">¡REGISTRADO!</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Librería HTML5-QRCode -->
+    <script is:inline src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    function onScanSuccess(decodedText, decodedResult) {
+      try {
+        const botonSeleccionado = document.querySelector('input[name="movimiento"]:checked');
+        if (!botonSeleccionado) {
+          console.error("Error: Faltan los botones de Entrada/Salida en el diseño.");
+          return;
+        }
+        
+        const tipoMovimiento = (botonSeleccionado as any).value;
+        const overlayEl = document.getElementById('overlay');
+        const overlayTexto = document.getElementById('overlay-texto');
+        
+        try { html5QrcodeScanner.pause(true); } catch(e) {}
+
+        const ahora = new Date().toISOString();
+        const urlBase = 'https://jomcrhdyfmsizldlpwmv.supabase.co/rest/v1/registros';
+        const apiKey = 'sb_publishable_-TO3wwjcQb3bzyQhuxj7VQ_4ahUUhGC';
+        
+        let fetchConfig = {};
+        let fetchUrl = '';
+
+        if (tipoMovimiento === 'Entrada') {
+          fetchUrl = urlBase;
+          fetchConfig = {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': apiKey,
+              'Authorization': `Bearer ${apiKey}`,
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({ empleado_id: decodedText })
+          };
+        } else {
+          fetchUrl = `${urlBase}?empleado_id=eq.${decodedText}&hora_salida=is.null`;
+          fetchConfig = {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': apiKey,
+              'Authorization': `Bearer ${apiKey}`,
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({ hora_salida: ahora })
+          };
+        }
+
+        fetch(fetchUrl, fetchConfig)
+        .then(response => {
+          if (response.ok) {
+            if (overlayEl && overlayTexto) {
+              overlayTexto.innerText = `¡${tipoMovimiento.toUpperCase()}!`;
+              overlayEl.style.display = 'flex';
+            }
+          } else {
+            console.error("Error al guardar en la base de datos.");
+          }
+        })
+        .catch(error => {
+          console.error("Error de conexión:", error);
+        })
+        .finally(() => {
+          setTimeout(() => { 
+              try { html5QrcodeScanner.resume(); } catch(e){}
+              const overlayEl = document.getElementById('overlay');
+              if (overlayEl) overlayEl.style.display = 'none';
+          }, 3000); 
+        });
+
+      } catch (errorGeneral) {
+         console.error(errorGeneral);
+      }
+    }
+
+    let html5QrcodeScanner = new (window as any).Html5QrcodeScanner(
+      "reader",
+      { 
+        fps: 10, 
+        qrbox: { width: 250, height: 250 }, 
+        aspectRatio: 1.0,
+        supportedScanTypes: [0]
+      },
+      false
+    );
+        
+    html5QrcodeScanner.render(onScanSuccess, () => {});
+  });
+</script>
+
+<style is:global>
+  :root {
+    --bg-color: #f1f5f9;
+    --text-main: #1e293b;
+    --primary: #3b82f6;
+    --primary-hover: #2563eb;
+    --border-color: #e2e8f0;
+    --card-bg: #ffffff;
+    --success: #10b981;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-color);
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 1.5rem;
+  }
+
+  .contenedor-checador {
+    background: var(--card-bg);
+    padding: 3rem;
+    border-radius: 24px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    width: 100%;
+    max-width: 480px;
+    text-align: center;
+  }
+
+  h1 {
+    margin: 0 0 2.5rem 0;
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: var(--text-main);
+    letter-spacing: -0.025em;
+    background: linear-gradient(135deg, #1e293b 0%, #3b82f6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .opciones-movimiento {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+    justify-content: center;
+  }
+
+  .radio-btn {
+    cursor: pointer;
+    flex: 1;
+  }
+
+  .radio-btn input {
+    display: none;
+  }
+
+  .radio-texto {
+    display: block;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #64748b;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+
+  .radio-btn input:checked + .radio-texto {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.3);
+  }
+
+  .scanner-wrapper {
+    position: relative;
+    background: #f8fafc;
+    border-radius: 20px;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+  }
+
+  .scanner-overlay {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    background-color: rgba(16, 185, 129, 0.95);
+    border-radius: 12px;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    color: white;
+    backdrop-filter: blur(4px);
+    animation: fadeIn 0.3s ease;
+  }
+
+  .overlay-contenido {
+    text-align: center;
+  }
+
+  .check-icon {
+    font-size: 5rem;
+    font-weight: 900;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+    display: block;
+    animation: scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+
+  #overlay-texto {
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: 0.05em;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes scaleIn {
+    from { transform: scale(0.5); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  #reader {
+    width: 100%;
+    border: none !important;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  #reader video {
+    border-radius: 12px;
+  }
+
+  /* Ajustar controles internos de la librería qr */
+  #reader__dashboard_section_csr {
+    margin-top: 1rem !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+    align-items: center !important;
+    padding: 0.5rem !important;
+  }
+
+  #reader__dashboard_section_csr button {
+    background-color: var(--primary) !important;
+    color: white !important;
+    border: none !important;
+    padding: 0.6rem 1.25rem !important;
+    border-radius: 10px !important;
+    cursor: pointer !important;
+    font-weight: 700 !important;
+    font-size: 0.9rem !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2) !important;
+    width: auto !important;
+  }
+
+  #reader__dashboard_section_csr button:hover {
+    background-color: var(--primary-hover) !important;
+    transform: translateY(-1px) !important;
+  }
+
+  #reader__dashboard_section_csr select {
+    padding: 0.5rem !important;
+    border-radius: 8px !important;
+    border: 1px solid var(--border-color) !important;
+    background: white !important;
+    color: var(--text-main) !important;
+    font-weight: 600 !important;
+    width: 90% !important;
+    max-width: 300px !important;
+  }
+</style>
+</html>

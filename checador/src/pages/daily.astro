@@ -1,0 +1,364 @@
+---
+// admin.astro
+---
+
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Panel de Administración - Asistencias</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+  </head>
+  <body>
+    <main class="contenedor-admin">
+      <div class="cabecera">
+        <h1>Historial Diario de Turnos</h1>
+      </div>
+      
+      <div class="tabla-responsiva">
+        <table>
+          <thead>
+            <tr>
+              <th>Empleado</th>
+              <th>Entrada</th>
+              <th>Salida</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-body">
+            <!-- Aquí se inyectarán los datos con JavaScript -->
+            <tr>
+              <td colspan="3" class="mensaje-estado">Cargando registros...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="toolbar">
+        <button id="btn-actualizar" class="btn-primario">
+          Actualizar Datos
+        </button>
+      </div>
+    </main>
+
+    <script>
+      const baseUrl = 'https://jomcrhdyfmsizldlpwmv.supabase.co/rest/v1/registros';
+      const apiKey = 'sb_publishable_-TO3wwjcQb3bzyQhuxj7VQ_4ahUUhGC';
+      let datosGlobales = []; // Para poder exportar lo que vemos
+      
+      async function cargarRegistros(esManual = true) {
+        const tbody = document.getElementById('tabla-body');
+        const btnActualizar = document.getElementById('btn-actualizar');
+        
+        if (esManual) {
+          btnActualizar.innerHTML = "⏳ Cargando...";
+          btnActualizar.classList.add('loading');
+        }
+        
+        try {
+          // Calculamos el inicio del día local (00:00:00)
+          const now = new Date();
+          const hoy = now.getFullYear() + '-' + 
+                      String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                      String(now.getDate()).padStart(2, '0');
+          
+          // Filtramos: hora_entrada >= Hoy a las 00:00:00
+          const url = `${baseUrl}?hora_entrada=gte.${hoy}T00:00:00&select=*&order=hora_entrada.desc`;
+
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'apikey': apiKey,
+              'Authorization': `Bearer ${apiKey}`
+            }
+          });
+          
+          if (!response.ok) throw new Error('Error de conexión con Supabase');
+          
+          const datos = await response.json();
+          datosGlobales = datos; // Guardamos para exportar
+          
+          let htmlFinal = ''; 
+          
+          if (datos.length === 0) {
+            htmlFinal = '<tr><td colspan="3" class="mensaje-estado">Aún no hay registros en la base de datos.</td></tr>';
+          } else {
+            datos.forEach(reg => {
+              const fEntrada = new Date(reg.hora_entrada);
+              const entradaTexto = fEntrada.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) + ' - ' + fEntrada.toLocaleTimeString('es-MX', { hour: '2-digit', minute:'2-digit' });
+              
+              let salidaHTML = '<span class="badge-activo">En turno...</span>';
+              if (reg.hora_salida) {
+                const fSalida = new Date(reg.hora_salida);
+                const salidaTexto = fSalida.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) + ' - ' + fSalida.toLocaleTimeString('es-MX', { hour: '2-digit', minute:'2-digit' });
+                salidaHTML = `<span class="text-salida">${salidaTexto}</span>`;
+              }
+              
+              htmlFinal += `
+                <tr>
+                  <td class="id-celda"><strong>${reg.empleado_id}</strong></td>
+                  <td><span class="text-entrada">${entradaTexto}</span></td>
+                  <td>${salidaHTML}</td>
+                </tr>
+              `;
+            });
+          }
+          tbody.innerHTML = htmlFinal;
+
+        } catch (error) {
+          console.error('Error al cargar:', error);
+          if (esManual) tbody.innerHTML = '<tr><td colspan="3" class="mensaje-estado error">Error al cargar los datos.</td></tr>';
+        } finally {
+          btnActualizar.innerHTML = " Actualizar";
+          btnActualizar.classList.remove('loading');
+        }
+      }
+
+      async function cerrarTurnosSilent() {
+        try {
+          const ahora = new Date().toISOString();
+          const fetchUrl = `${baseUrl}?hora_salida=is.null`;
+          
+          const response = await fetch(fetchUrl, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': apiKey,
+              'Authorization': `Bearer ${apiKey}`,
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({
+              hora_salida: ahora
+            })
+          });
+          
+          if (response.ok) {
+            console.log("Cierre automático de jornada ejecutado.");
+            cargarRegistros(false);
+          }
+        } catch (error) {
+          console.error("Error en cierre automático:", error);
+        }
+      }
+
+      let ultimoCierre = null;
+
+      document.addEventListener('DOMContentLoaded', () => cargarRegistros(true));
+      document.getElementById('btn-actualizar').addEventListener('click', () => cargarRegistros(true));
+      
+      setInterval(() => {
+        const ahora = new Date();
+        const hoy = ahora.toDateString();
+        
+        // Cierre automático a las 20:00 (8 PM)
+        if (ahora.getHours() === 20 && ahora.getMinutes() === 0 && ultimoCierre !== hoy) {
+          ultimoCierre = hoy;
+          cerrarTurnosSilent();
+        }
+
+        cargarRegistros(false);
+      }, 10000);
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --bg-color: #f1f5f9;
+    --text-main: #1e293b;
+    --primary: #3b82f6;
+    --primary-hover: #2563eb;
+    --border-color: #e2e8f0;
+    --card-bg: #ffffff;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-color);
+    margin: 0;
+    padding: 1.5rem;
+    color: var(--text-main);
+    line-height: 1.5;
+  }
+
+  .contenedor-admin {
+    max-width: 1000px;
+    margin: 0 auto;
+    background: var(--card-bg);
+    padding: 2.5rem;
+    border-radius: 20px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  }
+
+  .cabecera {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 2.5rem;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 2.75rem;
+    font-weight: 900;
+    color: var(--text-main);
+    text-align: center;
+    letter-spacing: -0.04em;
+    background: linear-gradient(135deg, #1e293b 0%, #3b82f6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1.25rem;
+    width: 100%;
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .btn-primario, .btn-secundario, .btn-peligro {
+    border: none;
+    padding: 0.8rem 1.75rem;
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center; /* Texto centrado dentro del botón */
+    gap: 0.6rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    min-width: 180px; /* IMPORTANTE: Ancho igual para que el hueco central esté alineado */
+  }
+
+  .btn-primario {
+    background-color: var(--primary);
+    color: white;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+  }
+
+  .btn-secundario {
+    background-color: #ffffff;
+    color: #475569;
+    border: 1px solid var(--border-color);
+  }
+
+  .btn-peligro {
+    background-color: #fff1f2;
+    color: #e11d48;
+    border: 1px solid #fecdd3;
+  }
+
+  .btn-primario:hover {
+    background-color: var(--primary-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(59, 130, 246, 0.35);
+  }
+
+  .btn-secundario:hover {
+    background-color: #f8fafc;
+    border-color: #cbd5e1;
+    transform: translateY(-2px);
+  }
+
+  .btn-peligro:hover {
+    background-color: #e11d48;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 15px rgba(225, 29, 72, 0.25);
+  }
+
+  .btn-primario:active, .btn-secundario:active, .btn-peligro:active {
+    transform: translateY(0);
+  }
+
+  .loading {
+    opacity: 0.8;
+    cursor: not-allowed;
+  }
+
+  .tabla-responsiva {
+    overflow-x: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: center;
+    background: white;
+  }
+
+  th, td {
+    padding: 1.25rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+    width: 33.33%; /* Columnas de igual ancho para centrado perfecto */
+  }
+
+  th {
+    background-color: #f8fafc;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+  }
+
+  /* Estilo para cuando el empleado no ha registrado su salida */
+  .badge-activo {
+    background-color: #fef9c3;
+    color: #854d0e;
+    padding: 0.35rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  /* Estilo para resaltar la hora de entrada y salida (ambas azules) */
+  .text-entrada, .text-salida {
+    color: #2563eb;
+    font-weight: 600;
+    background: #eff6ff;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+  }
+
+  .mensaje-estado {
+    text-align: center;
+    color: #64748b;
+    padding: 3rem !important;
+  }
+
+  .error {
+    color: #ef4444;
+  }
+
+  .id-celda {
+    font-size: 1rem;
+    color: var(--text-main);
+    text-align: center;
+  }
+
+  @media (max-width: 640px) {
+    .cabecera {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+    .espaciador { display: none; }
+    .acciones { justify-content: center; }
+    .contenedor-admin { padding: 1.5rem; }
+    h1 { font-size: 1.75rem; }
+    
+    body { padding: 1rem; }
+  }
+</style>
