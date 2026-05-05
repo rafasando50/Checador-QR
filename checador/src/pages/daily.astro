@@ -10,6 +10,12 @@ import Navbar from '../components/Navbar.astro';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <script is:inline>
+      // Protección de ruta (Ejecutar lo más pronto posible)
+      if (!document.cookie.includes('checador_admin_session=true')) {
+        window.location.href = '/login';
+      }
+    </script>
   </head>
   <body>
     <Navbar />
@@ -44,8 +50,7 @@ import Navbar from '../components/Navbar.astro';
     </main>
 
     <script>
-      const baseUrl = 'https://jomcrhdyfmsizldlpwmv.supabase.co/rest/v1/registros';
-      const apiKey = 'sb_publishable_-TO3wwjcQb3bzyQhuxj7VQ_4ahUUhGC';
+      // @ts-nocheck
       let datosGlobales = []; // Para poder exportar lo que vemos
       
       async function cargarRegistros(esManual = true) {
@@ -58,24 +63,9 @@ import Navbar from '../components/Navbar.astro';
         }
         
         try {
-          // Calculamos el inicio del día local (00:00:00)
-          const now = new Date();
-          const hoy = now.getFullYear() + '-' + 
-                      String(now.getMonth() + 1).padStart(2, '0') + '-' + 
-                      String(now.getDate()).padStart(2, '0');
+          const response = await fetch('/api/daily');
           
-          // Filtramos: hora_entrada >= Hoy a las 00:00:00
-          const url = `${baseUrl}?hora_entrada=gte.${hoy}T00:00:00&select=*&order=hora_entrada.desc`;
-
-          const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-              'apikey': apiKey,
-              'Authorization': `Bearer ${apiKey}`
-            }
-          });
-          
-          if (!response.ok) throw new Error('Error de conexión con Supabase');
+          if (!response.ok) throw new Error('Error de conexión con el servidor');
           
           const datos = await response.json();
           datosGlobales = datos; // Guardamos para exportar
@@ -116,26 +106,20 @@ import Navbar from '../components/Navbar.astro';
         }
       }
 
-      async function cerrarTurnosSilent() {
+      // El cierre automático ahora se maneja en el servidor o mediante una tarea programada
+      // Para simplificar, desactivo el cierre automático del lado del cliente aquí.
+      // Puedes implementar un cron job en tu servidor MySQL/Node.
+
+      let ultimoCierre = null;
+
+      document.addEventListener('DOMContentLoaded', () => cargarRegistros(true));
+      document.getElementById('btn-actualizar').addEventListener('click', () => cargarRegistros(true));
+      
+      async function cerrarJornadaAutomatico() {
         try {
-          const ahora = new Date().toISOString();
-          const fetchUrl = `${baseUrl}?hora_salida=is.null`;
-          
-          const response = await fetch(fetchUrl, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': apiKey,
-              'Authorization': `Bearer ${apiKey}`,
-              'Prefer': 'return=minimal'
-            },
-            body: JSON.stringify({
-              hora_salida: ahora
-            })
-          });
-          
+          const response = await fetch('/api/close-day', { method: 'POST' });
           if (response.ok) {
-            console.log("Cierre automático de jornada ejecutado.");
+            console.log("Jornada cerrada automáticamente.");
             cargarRegistros(false);
           }
         } catch (error) {
@@ -143,19 +127,16 @@ import Navbar from '../components/Navbar.astro';
         }
       }
 
-      let ultimoCierre = null;
+      let ultimoCierreRealizado = null;
 
-      document.addEventListener('DOMContentLoaded', () => cargarRegistros(true));
-      document.getElementById('btn-actualizar').addEventListener('click', () => cargarRegistros(true));
-      
       setInterval(() => {
         const ahora = new Date();
-        const hoy = ahora.toDateString();
+        const hoyString = ahora.toDateString();
         
-        // Cierre automático a las 20:00 (8 PM)
-        if (ahora.getHours() === 20 && ahora.getMinutes() === 0 && ultimoCierre !== hoy) {
-          ultimoCierre = hoy;
-          cerrarTurnosSilent();
+        // Si son las 20:00 (8 PM) y no hemos cerrado hoy
+        if (ahora.getHours() === 20 && ahora.getMinutes() === 0 && ultimoCierreRealizado !== hoyString) {
+          ultimoCierreRealizado = hoyString;
+          cerrarJornadaAutomatico();
         }
 
         cargarRegistros(false);

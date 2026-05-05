@@ -45,6 +45,7 @@ import Navbar from '../components/Navbar.astro';
     <script is:inline src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     
 <script>
+  // @ts-nocheck
   document.addEventListener('DOMContentLoaded', () => {
     function onScanSuccess(decodedText, decodedResult) {
       try {
@@ -54,54 +55,34 @@ import Navbar from '../components/Navbar.astro';
           return;
         }
         
-        const tipoMovimiento = (botonSeleccionado as any).value;
+        const tipoMovimiento = botonSeleccionado.value;
         const overlayEl = document.getElementById('overlay');
         const overlayTexto = document.getElementById('overlay-texto');
         
         try { html5QrcodeScanner.pause(true); } catch(e) {}
 
-        const ahora = new Date().toISOString();
-        const urlBase = 'https://jomcrhdyfmsizldlpwmv.supabase.co/rest/v1/registros';
-        const apiKey = 'sb_publishable_-TO3wwjcQb3bzyQhuxj7VQ_4ahUUhGC';
-        
-        let fetchConfig = {};
-        let fetchUrl = '';
-
-        if (tipoMovimiento === 'Entrada') {
-          fetchUrl = urlBase;
-          fetchConfig = {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': apiKey,
-              'Authorization': `Bearer ${apiKey}`,
-              'Prefer': 'return=minimal'
-            },
-            body: JSON.stringify({ empleado_id: decodedText })
-          };
-        } else {
-          fetchUrl = `${urlBase}?empleado_id=eq.${decodedText}&hora_salida=is.null`;
-          fetchConfig = {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': apiKey,
-              'Authorization': `Bearer ${apiKey}`,
-              'Prefer': 'return=minimal'
-            },
-            body: JSON.stringify({ hora_salida: ahora })
-          };
-        }
+        const fetchUrl = '/api/check';
+        const fetchConfig = {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            empleado_id: decodedText,
+            tipo: tipoMovimiento 
+          })
+        };
 
         fetch(fetchUrl, fetchConfig)
-        .then(response => {
+        .then(async response => {
           if (response.ok) {
             if (overlayEl && overlayTexto) {
               overlayTexto.innerText = `¡${tipoMovimiento.toUpperCase()}!`;
               overlayEl.style.display = 'flex';
             }
           } else {
-            console.error("Error al guardar en la base de datos.");
+            const errorData = await response.json();
+            alert(errorData.error || "Error al registrar.");
           }
         })
         .catch(error => {
@@ -120,7 +101,7 @@ import Navbar from '../components/Navbar.astro';
       }
     }
 
-    let html5QrcodeScanner = new (window as any).Html5QrcodeScanner(
+    let html5QrcodeScanner = new window.Html5QrcodeScanner(
       "reader",
       { 
         fps: 10, 

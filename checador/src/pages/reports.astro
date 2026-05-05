@@ -10,6 +10,12 @@ import Navbar from '../components/Navbar.astro';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <script is:inline>
+      // Protección de ruta (Ejecutar lo más pronto posible)
+      if (!document.cookie.includes('checador_admin_session=true')) {
+        window.location.href = '/login';
+      }
+    </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
   </head>
   <body>
@@ -41,7 +47,7 @@ import Navbar from '../components/Navbar.astro';
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             Buscar Registros
           </button>
-          <button id="btn-exportar" class="btn-secundario">
+          <button id="btn-exportar" class="btn-primario">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Exportar Excel
           </button>
@@ -80,8 +86,7 @@ import Navbar from '../components/Navbar.astro';
     </main>
 
     <script>
-      const baseUrl = 'https://jomcrhdyfmsizldlpwmv.supabase.co/rest/v1/registros';
-      const apiKey = 'sb_publishable_-TO3wwjcQb3bzyQhuxj7VQ_4ahUUhGC';
+      // @ts-nocheck
       let datosFiltrados = [];
 
       // Inicializar fechas (última semana por defecto)
@@ -90,16 +95,16 @@ import Navbar from '../components/Navbar.astro';
         const haceUnaSemana = new Date();
         haceUnaSemana.setDate(hoy.getDate() - 7);
         
-        (document.getElementById('fecha-inicio') as HTMLInputElement).value = haceUnaSemana.toISOString().split('T')[0];
-        (document.getElementById('fecha-fin') as HTMLInputElement).value = hoy.toISOString().split('T')[0];
+        document.getElementById('fecha-inicio').value = haceUnaSemana.toISOString().split('T')[0];
+        document.getElementById('fecha-fin').value = hoy.toISOString().split('T')[0];
         
         cargarReportes();
       });
 
       async function cargarReportes() {
-        const fechaInicio = (document.getElementById('fecha-inicio') as HTMLInputElement).value;
-        const fechaFin = (document.getElementById('fecha-fin') as HTMLInputElement).value;
-        const empleadoId = (document.getElementById('filtro-empleado') as HTMLInputElement).value.trim();
+        const fechaInicio = document.getElementById('fecha-inicio').value;
+        const fechaFin = document.getElementById('fecha-fin').value;
+        const empleadoId = document.getElementById('filtro-empleado').value.trim();
         
         const tbody = document.getElementById('tabla-body');
         const btnBuscar = document.getElementById('btn-buscar');
@@ -108,21 +113,14 @@ import Navbar from '../components/Navbar.astro';
         btnBuscar.classList.add('loading');
         
         try {
-          // Filtramos por rango de fechas
-          let url = `${baseUrl}?hora_entrada=gte.${fechaInicio}T00:00:00&hora_entrada=lte.${fechaFin}T23:59:59&select=*&order=hora_entrada.desc`;
+          // Filtramos por rango de fechas usando nuestra API local
+          let url = `/api/reports?start=${fechaInicio}&end=${fechaFin}`;
           
-          // Filtro por empleado si se proporcionó
           if (empleadoId) {
-            url += `&empleado_id=eq.${empleadoId}`;
+            url += `&empleado=${empleadoId}`;
           }
 
-          const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-              'apikey': apiKey,
-              'Authorization': `Bearer ${apiKey}`
-            }
-          });
+          const response = await fetch(url);
           
           if (!response.ok) throw new Error('Error de conexión');
           
@@ -185,33 +183,76 @@ import Navbar from '../components/Navbar.astro';
           return;
         }
 
-        const ExcelJS = (window as any).ExcelJS;
+        const ExcelJS = window.ExcelJS;
         const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Reporte Asistencias');
+        const worksheet = workbook.addWorksheet('Reporte de Asistencias');
 
+        // Definir columnas con mejor ancho
         worksheet.columns = [
-          { header: 'ID Empleado', key: 'id', width: 20 },
-          { header: 'Entrada', key: 'entrada', width: 25 },
-          { header: 'Salida', key: 'salida', width: 25 },
-          { header: 'Estado', key: 'estado', width: 15 }
+          { header: 'ID EMPLEADO', key: 'id', width: 20 },
+          { header: 'FECHA Y HORA ENTRADA', key: 'entrada', width: 30 },
+          { header: 'FECHA Y HORA SALIDA', key: 'salida', width: 30 },
+          { header: 'ESTADO', key: 'estado', width: 18 }
         ];
 
+        // Estilo para la cabecera
+        const headerRow = worksheet.getRow(1);
+        headerRow.font = { name: 'Arial', family: 4, size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+        headerRow.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF1E293B' } // Color Navy de tu diseño
+        };
+        headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Añadir datos
         datosFiltrados.forEach(reg => {
-          worksheet.addRow({
+          const row = worksheet.addRow({
             id: reg.empleado_id,
-            entrada: new Date(reg.hora_entrada).toLocaleString(),
-            salida: reg.hora_salida ? new Date(reg.hora_salida).toLocaleString() : 'N/A',
-            estado: reg.hora_salida ? 'Completado' : 'Incompleto'
+            entrada: new Date(reg.hora_entrada).toLocaleString('es-MX'),
+            salida: reg.hora_salida ? new Date(reg.hora_salida).toLocaleString('es-MX') : 'PENDIENTE',
+            estado: reg.hora_salida ? 'COMPLETADO' : 'INCOMPLETO'
+          });
+
+          // Estilo de alineación para la fila
+          row.alignment = { vertical: 'middle', horizontal: 'center' };
+
+          // Formato condicional para el estado directamente en la celda
+          const estadoCell = row.getCell(4);
+          if (reg.hora_salida) {
+            estadoCell.font = { color: { argb: 'FF065F46' }, bold: true }; // Verde oscuro
+          } else {
+            estadoCell.font = { color: { argb: 'FF991B1B' }, bold: true }; // Rojo oscuro
+          }
+        });
+
+        // Aplicar bordes a todas las celdas con datos
+        worksheet.eachRow((row, rowNumber) => {
+          row.eachCell((cell) => {
+            cell.border = {
+              top: { style: 'thin' },
+              left: { style: 'thin' },
+              bottom: { style: 'thin' },
+              right: { style: 'thin' }
+            };
           });
         });
 
+        // Activar filtros automáticos
+        worksheet.autoFilter = 'A1:D1';
+
+        // Generar el archivo
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
+        const fechaArchivo = new Date().toISOString().split('T')[0];
+        
         a.href = url;
-        a.download = `Reporte_Asistencias_${new Date().toISOString().split('T')[0]}.xlsx`;
+        a.download = `Reporte_Asistencias_${fechaArchivo}.xlsx`;
         a.click();
+        
+        window.URL.revokeObjectURL(url);
       }
 
       document.getElementById('btn-buscar').addEventListener('click', cargarReportes);
@@ -315,7 +356,8 @@ import Navbar from '../components/Navbar.astro';
   .acciones-filtros {
     display: flex;
     gap: 1rem;
-    justify-content: flex-end;
+    justify-content: center;
+    margin-top: 0.5rem;
   }
 
   /* Resumen */
@@ -420,8 +462,10 @@ import Navbar from '../components/Navbar.astro';
     cursor: pointer;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 0.6rem;
     transition: all 0.2s;
+    min-width: 200px;
   }
 
   .btn-primario {
