@@ -88,11 +88,17 @@ import Navbar from '../components/Navbar.astro';
               
               htmlFinal += `
                 <tr>
-                  <td class="id-celda"><strong>${reg.empleado_id}</strong></td>
+                  <td class="id-celda">
+                    <div style="display: flex; flex-direction: column; align-items: center;">
+                      <strong style="font-size: 1.1rem; color: #0f172a;">${reg.nombre || 'Desconocido'}</strong>
+                      <span style="font-size: 0.75rem; color: #64748b; font-family: monospace;">${reg.empleado_id}</span>
+                    </div>
+                  </td>
                   <td><span class="text-entrada">${entradaTexto}</span></td>
                   <td>${salidaHTML}</td>
                 </tr>
               `;
+
             });
           }
           tbody.innerHTML = htmlFinal;

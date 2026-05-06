@@ -75,16 +75,18 @@ import Navbar from '../components/Navbar.astro';
 
         fetch(fetchUrl, fetchConfig)
         .then(async response => {
+          const data = await response.json();
           if (response.ok) {
             if (overlayEl && overlayTexto) {
-              overlayTexto.innerText = `¡${tipoMovimiento.toUpperCase()}!`;
+              const nombreDisplay = data.nombre || 'Empleado';
+              overlayTexto.innerHTML = `<span style="font-size: 0.8em; opacity: 0.9; display: block; margin-bottom: 5px;">¡HOLA ${nombreDisplay.split(' ')[0].toUpperCase()}!</span>${tipoMovimiento.toUpperCase()} REGISTRADA`;
               overlayEl.style.display = 'flex';
             }
           } else {
-            const errorData = await response.json();
-            alert(errorData.error || "Error al registrar.");
+            alert(data.error || "Error al registrar.");
           }
         })
+
         .catch(error => {
           console.error("Error de conexión:", error);
         })

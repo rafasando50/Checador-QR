@@ -162,12 +162,18 @@ import Navbar from '../components/Navbar.astro';
           
           return `
             <tr>
-              <td><strong>${reg.empleado_id}</strong></td>
+              <td>
+                <div style="display: flex; flex-direction: column;">
+                  <strong style="color: #0f172a;">${reg.nombre || 'Desconocido'}</strong>
+                  <span style="font-size: 0.75rem; color: #64748b; font-family: monospace;">${reg.empleado_id}</span>
+                </div>
+              </td>
               <td><span class="text-entrada">${entradaTexto}</span></td>
               <td>${salidaHTML}</td>
               <td><div class="estado-celda">${estadoHTML}</div></td>
             </tr>
           `;
+
         }).join('');
       }
 

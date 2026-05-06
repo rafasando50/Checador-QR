@@ -6,17 +6,18 @@ export const GET = async ({ url }) => {
     const end = url.searchParams.get('end');
     const empleado = url.searchParams.get('empleado');
 
-    let query = 'SELECT * FROM registros WHERE hora_entrada >= ? AND hora_entrada <= ?';
+    let query = 'SELECT r.*, e.nombre FROM registros r LEFT JOIN empleados e ON r.empleado_id = e.id_empleado WHERE r.hora_entrada >= ? AND r.hora_entrada <= ?';
     let params = [`${start} 00:00:00`, `${end} 23:59:59`];
 
     if (empleado) {
-      query += ' AND empleado_id = ?';
+      query += ' AND r.empleado_id = ?';
       params.push(empleado);
     }
 
-    query += ' ORDER BY hora_entrada DESC';
+    query += ' ORDER BY r.hora_entrada DESC';
 
     const [rows] = await pool.execute(query, params);
+
 
     return new Response(JSON.stringify(rows), {
       status: 200,

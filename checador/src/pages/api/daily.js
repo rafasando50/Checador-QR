@@ -6,7 +6,7 @@ export const GET = async () => {
     hoy.setHours(0, 0, 0, 0);
     
     const [rows] = await pool.execute(
-      'SELECT * FROM registros WHERE hora_entrada >= ? ORDER BY hora_entrada DESC',
+      'SELECT r.*, e.nombre FROM registros r LEFT JOIN empleados e ON r.empleado_id = e.id_empleado WHERE r.hora_entrada >= ? ORDER BY r.hora_entrada DESC',
       [hoy]
     );
 
