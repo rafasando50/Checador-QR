@@ -1,5 +1,5 @@
 ---
-import Navbar from '../components/Navbar.astro';
+import Navbar from "../components/Navbar.astro";
 // Lógica de servidor (vacía por ahora)
 ---
 
@@ -8,23 +8,26 @@ import Navbar from '../components/Navbar.astro';
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Checador de Personal</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <Navbar />
     <main class="contenedor-checador">
       <h1>Registro de Asistencia</h1>
-      
+
       <!-- Botones para seleccionar Entrada o Salida -->
       <div class="opciones-movimiento">
         <label class="radio-btn">
-          <input type="radio" name="movimiento" value="Entrada" checked>
+          <input type="radio" name="movimiento" value="Entrada" checked />
           <span class="radio-texto">Entrada</span>
         </label>
         <label class="radio-btn">
-          <input type="radio" name="movimiento" value="Salida">
+          <input type="radio" name="movimiento" value="Salida" />
           <span class="radio-texto">Salida</span>
         </label>
       </div>
@@ -42,81 +45,96 @@ import Navbar from '../components/Navbar.astro';
     </main>
 
     <!-- Librería HTML5-QRCode -->
-    <script is:inline src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    
-<script>
-  // @ts-nocheck
-  document.addEventListener('DOMContentLoaded', () => {
-    function onScanSuccess(decodedText, decodedResult) {
-      try {
-        const botonSeleccionado = document.querySelector('input[name="movimiento"]:checked');
-        if (!botonSeleccionado) {
-          console.error("Error: Faltan los botones de Entrada/Salida en el diseño.");
-          return;
-        }
-        
-        const tipoMovimiento = botonSeleccionado.value;
-        const overlayEl = document.getElementById('overlay');
-        const overlayTexto = document.getElementById('overlay-texto');
-        
-        try { html5QrcodeScanner.pause(true); } catch(e) {}
+    <script
+      is:inline
+      src="https://unpkg.com/html5-qrcode"
+      type="text/javascript"
+    ></script>
 
-        const fetchUrl = '/api/check';
-        const fetchConfig = {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ 
-            empleado_id: decodedText,
-            tipo: tipoMovimiento 
-          })
-        };
-
-        fetch(fetchUrl, fetchConfig)
-        .then(async response => {
-          const data = await response.json();
-          if (response.ok) {
-            if (overlayEl && overlayTexto) {
-              const nombreDisplay = data.nombre || 'Empleado';
-              overlayTexto.innerHTML = `<span style="font-size: 0.8em; opacity: 0.9; display: block; margin-bottom: 5px;">¡HOLA ${nombreDisplay.split(' ')[0].toUpperCase()}!</span>${tipoMovimiento.toUpperCase()} REGISTRADA`;
-              overlayEl.style.display = 'flex';
+    <script>
+      // @ts-nocheck
+      document.addEventListener("DOMContentLoaded", () => {
+        function onScanSuccess(decodedText, decodedResult) {
+          try {
+            const botonSeleccionado = document.querySelector(
+              'input[name="movimiento"]:checked',
+            );
+            if (!botonSeleccionado) {
+              console.error(
+                "Error: Faltan los botones de Entrada/Salida en el diseño.",
+              );
+              return;
             }
-          } else {
-            alert(data.error || "Error al registrar.");
+
+            const tipoMovimiento = botonSeleccionado.value;
+            const overlayEl = document.getElementById("overlay");
+            const overlayTexto = document.getElementById("overlay-texto");
+
+            try {
+              html5QrcodeScanner.pause(true);
+            } catch (e) {}
+
+            const fetchUrl = "/api/check";
+            const fetchConfig = {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                empleado_id: decodedText,
+                tipo: tipoMovimiento,
+              }),
+            };
+
+            fetch(fetchUrl, fetchConfig)
+              .then(async (response) => {
+                const data = await response.json();
+                if (response.ok) {
+                  if (overlayEl && overlayTexto) {
+                    const nombreDisplay = data.nombre || "Empleado";
+                    overlayTexto.innerHTML = `<span style="font-size: 0.8em; opacity: 0.9; display: block; margin-bottom: 5px;">¡HOLA ${nombreDisplay
+                      .split(" ")[0]
+                      .toUpperCase()}!</span>${tipoMovimiento.toUpperCase()} REGISTRADA`;
+                    overlayEl.style.display = "flex";
+                  }
+                } else {
+                  alert(data.error || "Error al registrar.");
+                }
+              })
+
+              .catch((error) => {
+                console.error("Error de conexión:", error);
+              })
+              .finally(() => {
+                setTimeout(() => {
+                  try {
+                    html5QrcodeScanner.resume();
+                  } catch (e) {}
+                  const overlayEl = document.getElementById("overlay");
+                  if (overlayEl) overlayEl.style.display = "none";
+                }, 2000);
+              });
+          } catch (errorGeneral) {
+            console.error(errorGeneral);
           }
-        })
+        }
 
-        .catch(error => {
-          console.error("Error de conexión:", error);
-        })
-        .finally(() => {
-          setTimeout(() => { 
-              try { html5QrcodeScanner.resume(); } catch(e){}
-              const overlayEl = document.getElementById('overlay');
-              if (overlayEl) overlayEl.style.display = 'none';
-          }, 2000); 
-        });
+        let html5QrcodeScanner = new window.Html5QrcodeScanner(
+          "reader",
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0,
+            supportedScanTypes: [0],
+          },
+          false,
+        );
 
-      } catch (errorGeneral) {
-         console.error(errorGeneral);
-      }
-    }
-
-    let html5QrcodeScanner = new window.Html5QrcodeScanner(
-      "reader",
-      { 
-        fps: 10, 
-        qrbox: { width: 250, height: 250 }, 
-        aspectRatio: 1.0,
-        supportedScanTypes: [0]
-      },
-      false
-    );
-        
-    html5QrcodeScanner.render(onScanSuccess, () => {});
-  });
-</script>
+        html5QrcodeScanner.render(onScanSuccess, () => {});
+      });
+    </script>
+  </body>
+</html>
 
 <style is:global>
   :root {
@@ -130,7 +148,7 @@ import Navbar from '../components/Navbar.astro';
   }
 
   body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
     background-color: var(--bg-color);
     margin: 0;
     min-height: 100vh;
@@ -140,7 +158,8 @@ import Navbar from '../components/Navbar.astro';
     background: var(--card-bg);
     padding: 3rem;
     border-radius: 24px;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05),
+      0 10px 10px -5px rgba(0, 0, 0, 0.04);
     width: 100%;
     max-width: 480px;
     text-align: center;
@@ -183,7 +202,7 @@ import Navbar from '../components/Navbar.astro';
     font-size: 0.95rem;
     color: #64748b;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   }
 
   .radio-btn input:checked + .radio-texto {
@@ -242,13 +261,23 @@ import Navbar from '../components/Navbar.astro';
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   @keyframes scaleIn {
-    from { transform: scale(0.5); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
+    from {
+      transform: scale(0.5);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
   }
 
   #reader {
@@ -302,4 +331,3 @@ import Navbar from '../components/Navbar.astro';
     max-width: 300px !important;
   }
 </style>
-</html>
